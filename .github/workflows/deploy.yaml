@@ -42,6 +42,10 @@ jobs:
           # Jika di ENV_PROD_EXTRAS belum ada APP_KEY, kita generate.
           php artisan key:generate --force
           
+          # Buat database.sqlite untuk server production
+          mkdir -p database
+          touch database/database.sqlite
+          
       - name: 🧹 Cleanup Unnecessary Files for Production
         run: |
           # Menghapus folder yang tidak dibutuhkan di server production agar upload FTP lebih cepat

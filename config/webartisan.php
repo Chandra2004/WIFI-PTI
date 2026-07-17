@@ -113,19 +113,19 @@ return [
     */
 
     'blocked_commands' => [
-        'down',
-        'up',
-        'env',
-        'serve',
-        'tinker',
-        'key:generate',
-        'package:discover',
-        'migrate:fresh',
-        'migrate:reset',
-        'db:wipe',
-        // 'db:seed',
-        'storage:link',
-        'vendor:publish',
+        // 'down',
+        // 'up',
+        // 'env',
+        // 'serve',
+        // 'tinker',
+        // 'key:generate',
+        // 'package:discover',
+        // 'migrate:fresh',
+        // 'migrate:reset',
+        // 'db:wipe',
+        // // 'db:seed',
+        // 'storage:link',
+        // 'vendor:publish',
     ],
 
     /*
