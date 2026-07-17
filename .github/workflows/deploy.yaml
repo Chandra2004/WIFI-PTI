@@ -8,44 +8,44 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: 🚚 Get latest code
         uses: actions/checkout@v4
-        
+
       - name: 🐘 Setup PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2' # Sesuaikan dengan versi PHP project (minimum 8.2)
           extensions: mbstring, bcmath, ctype, curl, dom, fileinfo, filter, hash, libxml, openssl, pcre, pdo, session, tokenizer, xml
-          
+
       - name: 📦 Install PHP Dependencies (Composer)
         run: composer install --no-interaction --prefer-dist --optimize-autoloader --no-dev
-        
+
       - name: 🟢 Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          
+
       - name: 📦 Install NPM Dependencies & Build Assets (Vite)
         run: |
           npm install --legacy-peer-deps
           npm run build
-          
+
       - name: ⚙️ Prepare Environment File
         env:
           PROD_EXTRAS: ${{ secrets.ENV_PROD_EXTRAS }}
         run: |
-          cp .env.example .env
+          # cp .env.example .env
           echo "$PROD_EXTRAS" >> .env
-          
+
           # Jika di ENV_PROD_EXTRAS belum ada APP_KEY, kita generate.
           php artisan key:generate --force
-          
+
           # Buat database.sqlite untuk server production
           mkdir -p database
           touch database/database.sqlite
-          
+
       - name: 🧹 Cleanup Unnecessary Files for Production
         run: |
           # Menghapus folder yang tidak dibutuhkan di server production agar upload FTP lebih cepat
@@ -53,7 +53,7 @@ jobs:
           rm -rf tests
           rm -rf .git
           rm -rf .github
-          
+
       - name: 🚀 Sync Files via FTP to InfinityFree
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
