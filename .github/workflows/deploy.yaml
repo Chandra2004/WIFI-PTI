@@ -1,0 +1,64 @@
+name: Deploy to InfinityFree (FTP)
+
+on:
+  push:
+    branches:
+      - main # Ubah ini jika branch utama Anda bernama 'master'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 🚚 Get latest code
+        uses: actions/checkout@v4
+        
+      - name: 🐘 Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2' # Sesuaikan dengan versi PHP project (minimum 8.2)
+          extensions: mbstring, bcmath, ctype, curl, dom, fileinfo, filter, hash, libxml, openssl, pcre, pdo, session, tokenizer, xml
+          
+      - name: 📦 Install PHP Dependencies (Composer)
+        run: composer install --no-interaction --prefer-dist --optimize-autoloader --no-dev
+        
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          
+      - name: 📦 Install NPM Dependencies & Build Assets (Vite)
+        run: |
+          npm install
+          npm run build
+          
+      - name: ⚙️ Prepare Environment File
+        run: |
+          cp .env.example .env
+          echo "${{ secrets.ENV_PROD_EXTRAS }}" >> .env
+          
+          # Jika di ENV_PROD_EXTRAS belum ada APP_KEY, kita generate.
+          php artisan key:generate --force
+          
+      - name: 🧹 Cleanup Unnecessary Files for Production
+        run: |
+          # Menghapus folder yang tidak dibutuhkan di server production agar upload FTP lebih cepat
+          rm -rf node_modules
+          rm -rf tests
+          rm -rf .git
+          rm -rf .github
+          
+      - name: 🚀 Sync Files via FTP to InfinityFree
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          # InfinityFree biasanya menggunakan folder htdocs sebagai web root
+          server-dir: /htdocs/
+          # Pengecualian tambahan untuk berjaga-jaga
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/node_modules/**
+            **/tests/**
