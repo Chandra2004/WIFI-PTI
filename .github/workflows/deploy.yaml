@@ -33,9 +33,11 @@ jobs:
           npm run build
           
       - name: ⚙️ Prepare Environment File
+        env:
+          PROD_EXTRAS: ${{ secrets.ENV_PROD_EXTRAS }}
         run: |
           cp .env.example .env
-          echo "${{ secrets.ENV_PROD_EXTRAS }}" >> .env
+          echo "$PROD_EXTRAS" >> .env
           
           # Jika di ENV_PROD_EXTRAS belum ada APP_KEY, kita generate.
           php artisan key:generate --force
