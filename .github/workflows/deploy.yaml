@@ -10,10 +10,33 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # --- CHATOP NOTIFICATION: IN-PROGRESS ---
+      - name: ⏳ Send In-Progress Notification
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_TOKEN }}
+          format: markdown
+          message: |
+            ⏳ *[DEPLOYMENT IN PROGRESS]*
+            ------------------------------------------------
+            *Service*      : `${{ github.repository }}`
+            *Target Env*   : InfinityFree (Production)
+            *Version*      : `${{ github.sha }}`
+            *Triggered By* : @${{ github.actor }}
+
+            *Status*       : 🧱 Building Environment & FTP Sync (Step 1 of 1)
+            *Est. Time*    : ~2 minutes remaining
+            ------------------------------------------------
+            [📺 Track Live Progress](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
       - name: 🚚 Get latest code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Penting untuk mendeteksi perubahan file di git diff
+          fetch-depth: 0
+
+      - name: ⏱️ Set Start Time
+        run: echo "START_TIME=$(date +%s)" >> $GITHUB_ENV
 
       - name: 🐘 Setup PHP
         uses: shivammathur/setup-php@v2
@@ -21,7 +44,7 @@ jobs:
           php-version: '8.2'
           extensions: mbstring, bcmath, ctype, curl, dom, fileinfo, filter, hash, libxml, openssl, pcre, pdo, session, tokenizer, xml
 
-      - name: 📦 Install PHP Dependencies (Composer)
+      - name: 📦 Install PHP Dependencies
         run: composer install --no-interaction --prefer-dist --optimize-autoloader --no-dev
 
       - name: 🟢 Setup Node.js
@@ -29,12 +52,12 @@ jobs:
         with:
           node-version: '20'
 
-      - name: 📦 Install NPM Dependencies & Build Assets (Vite)
+      - name: 📦 Install NPM Dependencies & Build Assets
         run: |
           npm install --legacy-peer-deps
           npm run build
 
-      - name: ⚙️ Prepare Environment File
+      - name: ⚙️ Prepare Environment
         env:
           PROD_EXTRAS: ${{ secrets.ENV_PROD_EXTRAS }}
         run: |
@@ -43,20 +66,17 @@ jobs:
           mkdir -p database
           touch database/database.sqlite
 
-      - name: 🧹 Cleanup Unnecessary Files for Production
+      - name: 🧹 Cleanup
         run: |
-          rm -rf node_modules
-          rm -rf tests
-          rm -rf .git
-          rm -rf .github
+          rm -rf node_modules tests .git .github
 
-      - name: 📝 Get Changed Files
-        id: files
+      - name: 📝 Extract Info for ChatOps
+        id: info
         run: |
-          # Mengambil daftar file yang berubah antara commit terakhir dan sebelumnya
           echo "changed_files=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | tr '\n' ', ')" >> $GITHUB_OUTPUT
+          echo "commit_msg=$(git log -1 --pretty=%B | head -n 1)" >> $GITHUB_OUTPUT
 
-      - name: 🚀 Sync Files via FTP to InfinityFree
+      - name: 🚀 Sync Files via FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
@@ -69,9 +89,15 @@ jobs:
             **/node_modules/**
             **/tests/**
 
-      # --- NOTIFIKASI TELEGRAM ---
+      - name: ⏱️ Calculate Duration
+        if: always()
+        run: |
+          END_TIME=$(date +%s)
+          DURATION=$((END_TIME - START_TIME))
+          echo "DURATION_MIN=$((DURATION / 60))m $((DURATION % 60))s" >> $GITHUB_ENV
 
-      - name: ✅ Send Success Notification
+      # --- CHATOP NOTIFICATION: SUCCESS ---
+      - name: ✅ Send Professional Success Notification
         if: success()
         uses: appleboy/telegram-action@master
         with:
@@ -79,19 +105,26 @@ jobs:
           token: ${{ secrets.TELEGRAM_TOKEN }}
           format: markdown
           message: |
-            🚀 *Deployment ke InfinityFree Berhasil!*
+            🚀 *[PRODUCTION RELEASE] - SUCCESS*
+            ------------------------------------------------
+            *App*        : `${{ github.repository }}`
+            *Version*    : `${{ github.sha }}`
+            *Merged By*  : @${{ github.actor }}
+            *Infrastructure*: InfinityFree (FTP Deploy)
 
-            📦 *Proyek:* `${{ github.repository }}`
-            🌿 *Branch:* `${{ github.ref_name }}`
-            👤 *Author:* ${{ github.actor }}
-            📝 *Commit:* `${{ github.event.head_commit.message }}`
+            📝 *RELEASE CHANGELOG:*
+            `${{ steps.info.outputs.commit_msg }}`
 
-            📂 *File yang Berubah:*
-            `${{ steps.files.outputs.changed_files }}`
+            📂 *File Updated:*
+            `${{ steps.info.outputs.changed_files }}`
 
-            🔗 *Lihat Perubahan:* [Klik di sini](${{ github.event.head_commit.url }})
+            📊 *METRICS:*
+            • *Build Time*: ${{ env.DURATION_MIN }}
+            ------------------------------------------------
+            [🌐 Live App URL](http://${{ secrets.FTP_SERVER }})  [📈 View Logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
 
-      - name: ❌ Send Failure Notification
+      # --- CHATOP NOTIFICATION: FAILED ---
+      - name: 🚨 Send Professional Failure Notification
         if: failure()
         uses: appleboy/telegram-action@master
         with:
@@ -99,10 +132,19 @@ jobs:
           token: ${{ secrets.TELEGRAM_TOKEN }}
           format: markdown
           message: |
-            ❌ *Deployment ke InfinityFree Gagal!*
+            🚨 *[PIPELINE ALERT] - BUILD FAILED*
+            ------------------------------------------------
+            *Project*     : `${{ github.repository }}`
+            *Environment* : Production
+            *Branch/Tag*  : `${{ github.ref_name }}` (Commit: `${{ github.sha }}`)
+            *Author*      : @${{ github.actor }} (Blame / Triggered by)
+            *Duration*    : ${{ env.DURATION_MIN }}
 
-            🚨 *Error pada:* `${{ github.repository }}`
-            💬 *Pesan Commit:* `${{ github.event.head_commit.message }}`
+            ❌ *FAILED STAGE:* [Deployment-FTP]
 
-            ⚠️ Mohon segera cek log di GitHub Actions:
-            [Lihat Log Detail](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            Error Summary:
+            > Pipeline process terminated unexpectedly.
+            > Cek ketersediaan space pada FTP atau error pada composer/npm.
+
+            ------------------------------------------------
+            [🔍 View Failure Logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})  [🔄 Re-run Pipeline](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
