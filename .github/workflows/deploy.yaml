@@ -12,6 +12,8 @@ jobs:
     steps:
       - name: 🚚 Get latest code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Penting untuk mendeteksi perubahan file di git diff
 
       - name: 🐘 Setup PHP
         uses: shivammathur/setup-php@v2
@@ -48,6 +50,12 @@ jobs:
           rm -rf .git
           rm -rf .github
 
+      - name: 📝 Get Changed Files
+        id: files
+        run: |
+          # Mengambil daftar file yang berubah antara commit terakhir dan sebelumnya
+          echo "changed_files=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | tr '\n' ', ')" >> $GITHUB_OUTPUT
+
       - name: 🚀 Sync Files via FTP to InfinityFree
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
@@ -61,7 +69,7 @@ jobs:
             **/node_modules/**
             **/tests/**
 
-      # --- BAGIAN NOTIFIKASI TELEGRAM ---
+      # --- NOTIFIKASI TELEGRAM ---
 
       - name: ✅ Send Success Notification
         if: success()
@@ -69,14 +77,19 @@ jobs:
         with:
           to: ${{ secrets.TELEGRAM_CHAT_ID }}
           token: ${{ secrets.TELEGRAM_TOKEN }}
+          format: markdown
           message: |
             🚀 *Deployment ke InfinityFree Berhasil!*
 
-            Proyek: ${{ github.repository }}
-            Branch: main
-            Pesan Commit: ${{ github.event.head_commit.message }}
+            📦 *Proyek:* `${{ github.repository }}`
+            🌿 *Branch:* `${{ github.ref_name }}`
+            👤 *Author:* ${{ github.actor }}
+            📝 *Commit:* `${{ github.event.head_commit.message }}`
 
-            Website sudah diperbarui di InfinityFree.
+            📂 *File yang Berubah:*
+            `${{ steps.files.outputs.changed_files }}`
+
+            🔗 *Lihat Perubahan:* [Klik di sini](${{ github.event.head_commit.url }})
 
       - name: ❌ Send Failure Notification
         if: failure()
@@ -84,10 +97,12 @@ jobs:
         with:
           to: ${{ secrets.TELEGRAM_CHAT_ID }}
           token: ${{ secrets.TELEGRAM_TOKEN }}
+          format: markdown
           message: |
             ❌ *Deployment ke InfinityFree Gagal!*
 
-            Proyek: ${{ github.repository }}
-            Terjadi error saat proses deployment.
-            Silakan cek log di sini:
-            https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            🚨 *Error pada:* `${{ github.repository }}`
+            💬 *Pesan Commit:* `${{ github.event.head_commit.message }}`
+
+            ⚠️ Mohon segera cek log di GitHub Actions:
+            [Lihat Log Detail](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
