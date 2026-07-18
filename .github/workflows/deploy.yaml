@@ -3,7 +3,7 @@ name: Deploy to InfinityFree (FTP)
 on:
   push:
     branches:
-      - main # Ubah ini jika branch utama Anda bernama 'master'
+      - main
 
 jobs:
   deploy:
@@ -16,7 +16,7 @@ jobs:
       - name: 🐘 Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.2' # Sesuaikan dengan versi PHP project (minimum 8.2)
+          php-version: '8.2'
           extensions: mbstring, bcmath, ctype, curl, dom, fileinfo, filter, hash, libxml, openssl, pcre, pdo, session, tokenizer, xml
 
       - name: 📦 Install PHP Dependencies (Composer)
@@ -36,19 +36,13 @@ jobs:
         env:
           PROD_EXTRAS: ${{ secrets.ENV_PROD_EXTRAS }}
         run: |
-          # cp .env.example .env
           echo "$PROD_EXTRAS" >> .env
-
-          # Jika di ENV_PROD_EXTRAS belum ada APP_KEY, kita generate.
           php artisan key:generate --force
-
-          # Buat database.sqlite untuk server production
           mkdir -p database
           touch database/database.sqlite
 
       - name: 🧹 Cleanup Unnecessary Files for Production
         run: |
-          # Menghapus folder yang tidak dibutuhkan di server production agar upload FTP lebih cepat
           rm -rf node_modules
           rm -rf tests
           rm -rf .git
@@ -60,11 +54,40 @@ jobs:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
-          # InfinityFree biasanya menggunakan folder htdocs sebagai web root
           server-dir: /htdocs/
-          # Pengecualian tambahan untuk berjaga-jaga
           exclude: |
             **/.git*
             **/.git*/**
             **/node_modules/**
             **/tests/**
+
+      # --- BAGIAN NOTIFIKASI TELEGRAM ---
+
+      - name: ✅ Send Success Notification
+        if: success()
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_TOKEN }}
+          message: |
+            🚀 *Deployment ke InfinityFree Berhasil!*
+
+            Proyek: ${{ github.repository }}
+            Branch: main
+            Pesan Commit: ${{ github.event.head_commit.message }}
+
+            Website sudah diperbarui di InfinityFree.
+
+      - name: ❌ Send Failure Notification
+        if: failure()
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_TOKEN }}
+          message: |
+            ❌ *Deployment ke InfinityFree Gagal!*
+
+            Proyek: ${{ github.repository }}
+            Terjadi error saat proses deployment.
+            Silakan cek log di sini:
+            https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
